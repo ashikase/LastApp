@@ -1,0 +1,14 @@
+Package: jp.ashikase.lastapp
+Name: LastApp
+Version: svn.r102
+Architecture: iphoneos-arm
+Description: Quickly switch to previous application.
+Homepage: http://iphone-tweaks.googlecode.com/
+Depiction: http://moreinfo.thebigboss.org/moreinfo/depiction.php?file=lastappData
+Maintainer: BigBoss <bigboss@thebigboss.org>
+Author: Lance Fetters (ashikase) <gaizin@gmail.com>
+Section: System
+Depends: firmware (>=3.0), mobilesubstrate, libactivator (>=1.1.0), preferenceloader
+Recommends: backgrounder
+dev: ashikase
+Sponsor: thebigboss.org <http://thebigboss.org>
