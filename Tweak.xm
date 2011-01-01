@@ -3,11 +3,11 @@
  * Type: iPhone OS SpringBoard extension (MobileSubstrate-based)
  * Description: Quickly switch to the previously-active application
  * Author: Lance Fetters (aka. ashikase)
- * Last-modified: 2010-02-20 23:15:59
+ * Last-modified: 2011-01-01 22:27:50
  */
 
 /**
- * Copyright (C) 2010  Lance Fetters (aka. ashikase)
+ * Copyright (C) 2010-2011  Lance Fetters (aka. ashikase)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,17 +40,48 @@
  */
 
 
-#import <SpringBoard/SBApplication.h>
-#import <SpringBoard/SBApplicationController.h>
-#import <SpringBoard/SBAwayController.h>
-#import <SpringBoard/SBIconController.h>
-#import <SpringBoard/SBDisplay.h>
-#import <SpringBoard/SBDisplayStack.h>
-#import <SpringBoard/SBPowerDownController.h>
-#import <SpringBoard/SpringBoard.h>
-
 #import <libactivator/libactivator.h>
  
+@interface SBDisplay : NSObject
+- (void)setActivationSetting:(unsigned)setting flag:(BOOL)flag;
+- (void)setDeactivationSetting:(unsigned)setting flag:(BOOL)flag;
+- (void)setDisplaySetting:(unsigned)setting flag:(BOOL)flag;
+@end
+
+@interface SBApplication : SBDisplay
+- (id)displayIdentifier;
+@end
+
+@interface SBAlert : SBDisplay @end
+
+@interface SBApplicationController : NSObject
++ (id)sharedInstance;
+- (id)applicationWithDisplayIdentifier:(id)displayIdentifier;
+@end
+
+@interface SBAwayController : SBAlert
++ (id)sharedAwayController;
+- (BOOL)isLocked;
+- (BOOL)isMakingEmergencyCall;
+@end
+
+@interface SBDisplayStack : NSObject
+- (id)popDisplay:(id)display;
+- (void)pushDisplay:(id)display;
+- (id)topApplication;
+@end
+
+@interface SBIconController : NSObject
++ (id)sharedInstance;
+@end
+
+@interface SBPowerDownController : SBAlert
++ (id)sharedInstance;
+- (BOOL)isOrderedFront;
+@end
+
+@interface SpringBoard : UIApplication @end
+
 // NOTE: This is needed to prevent a compiler warning
 @interface SpringBoard (Backgrounder)
 - (void)setBackgroundingEnabled:(BOOL)enabled forDisplayIdentifier:(NSString *)identifier;
