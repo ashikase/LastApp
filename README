@@ -1,0 +1,45 @@
+To build this project:
+
+1. Install an iOS toolchain for your system.
+2. $ bash get_requirements.sh
+3. $ export SYSROOT=<path to root of iOS SDK>
+4. $ make
+
+---
+
+To create a .deb package that can be installed on your device:
+
+1. $ make package
+
+NOTE: While I would prefer that you do not distribute your own package, and that
+      you would instead submit any patches to me instead, if you do decide to
+      distribute, *please* be certain to:
+
+1. Rename your package identifier (Package:) and name (Name:).
+   Do *not* use the original project name (e.g. "Backgrounder", "LastApp", etc).
+2. Change the author/maintainer information.
+3. Make your package conflicts with the original (my) package.
+4. Be sure to follow the rules of the license.
+   - The original author must be credited for the original work,
+     and *only* the original work - not any changes made by you.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                                                                       !
+! WARNING: If people begin distributing custom builds without following !
+!          the above instructions, I *will* terminate this project.     !
+!                                                                       !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+---
+
+To install the package created in the previous step:
+
+1. $ export FW_DEVICE_IP=<your device's IP address>
+2. $ export FW_DEVICE_PORT=<your device's ssh port>
+3. $ make install
+
+---
+
+For more information about Theos, the build system used for this project, see:
+  
+  http://iphonedevwiki.net/index.php/Theos/Getting_Started
