@@ -3,7 +3,7 @@
  * Type: iPhone OS SpringBoard extension (MobileSubstrate-based)
  * Description: Quickly switch to the previously-active application
  * Author: Lance Fetters (aka. ashikase)
- * Last-modified: 2011-01-01 22:27:50
+ * Last-modified: 2011-01-02 00:38:24
  */
 
 /**
@@ -150,6 +150,8 @@ NSMutableArray *displayStacks = nil;
 
 //==============================================================================
 
+static BOOL isFirmware3x_ = NO;
+
 static BOOL shouldBackground = NO;
 
 static NSString *currentDisplayId = nil;
@@ -226,8 +228,15 @@ static BOOL canInvoke()
                 [SBWPreActivateDisplayStack pushDisplay:toApp];
             } else {
                 // Switching from another app; activate previously-active app
-                [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
-                [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
+                if (isFirmware3x_) {
+                    // Firmware 3.x
+                    [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
+                    [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
+                } else {
+                    // Firmware 4.x
+                    [toApp setActivationSetting:0x80 flag:YES]; // animateOthersSuspension
+                    [toApp setActivationSetting:0x40000 flag:YES]; // appToApp
+                }
 
                 if (shouldBackground)
                     // If Backgrounder is installed, enable backgrounding for current application
@@ -275,6 +284,9 @@ __attribute__((constructor)) static void init()
     NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
     if (![identifier isEqualToString:@"com.apple.springboard"])
         return;
+
+    // Determine firmware version
+    isFirmware3x_ = (class_getInstanceMethod(objc_getClass("SBApplication"), @selector(pid)) != NULL);
 
     // Initialize hooks
     %init;
