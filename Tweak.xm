@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 15:17:06
+ * Last-modified: 2013-01-31 15:18:39
  */
 
 #import <libactivator/libactivator.h>
@@ -254,24 +254,22 @@ __attribute__((constructor)) static void init()
 
     // NOTE: This library should only be loaded for SpringBoard
     NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
-    if (![identifier isEqualToString:@"com.apple.springboard"]) {
-        return;
+    if ([identifier isEqualToString:@"com.apple.springboard"]) {
+        // Initialize hooks
+        %init;
+
+        // Load preferences
+        loadPreferences();
+
+        // Add observer for changes made to preferences
+        CFNotificationCenterAddObserver(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                NULL, reloadPreferences, CFSTR(APP_ID"-settings"),
+                NULL, 0);
+
+        // Create the libactivator event listener
+        [LastAppActivator load];
     }
-
-    // Initialize hooks
-    %init;
-
-    // Load preferences
-    loadPreferences();
-
-    // Add observer for changes made to preferences
-    CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            NULL, reloadPreferences, CFSTR(APP_ID"-settings"),
-            NULL, 0);
-
-    // Create the libactivator event listener
-    [LastAppActivator load];
 
     [pool release];
 }
