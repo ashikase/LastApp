@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 22:58:17
+ * Last-modified: 2013-01-31 22:59:17
  */
 
 #import <libactivator/libactivator.h>
@@ -116,26 +116,26 @@
 
 //==============================================================================
 
-NSMutableArray *displayStacks = nil;
+NSMutableArray *displayStacks$ = nil;
 
 // Display stack names
-#define SBWPreActivateDisplayStack        [displayStacks objectAtIndex:0]
-#define SBWActiveDisplayStack             [displayStacks objectAtIndex:1]
-#define SBWSuspendingDisplayStack         [displayStacks objectAtIndex:2]
-#define SBWSuspendedEventOnlyDisplayStack [displayStacks objectAtIndex:3]
+#define SBWPreActivateDisplayStack        [displayStacks$ objectAtIndex:0]
+#define SBWActiveDisplayStack             [displayStacks$ objectAtIndex:1]
+#define SBWSuspendingDisplayStack         [displayStacks$ objectAtIndex:2]
+#define SBWSuspendedEventOnlyDisplayStack [displayStacks$ objectAtIndex:3]
 
 %hook SBDisplayStack
 
 - (id)init
 {
     id stack = %orig;
-    [displayStacks addObject:stack];
+    [displayStacks$ addObject:stack];
     return stack;
 }
 
 - (void)dealloc
 {
-    [displayStacks removeObject:self];
+    [displayStacks$ removeObject:self];
     %orig;
 }
 
@@ -204,7 +204,7 @@ static inline NSString *topApplicationIdentifier()
 {
     // NOTE: SpringBoard creates four stacks at startup
     // NOTE: Must create array before calling original implementation
-    displayStacks = [[NSMutableArray alloc] initWithCapacity:4];
+    displayStacks$ = [[NSMutableArray alloc] initWithCapacity:4];
 
     %orig;
 }
@@ -213,7 +213,7 @@ static inline NSString *topApplicationIdentifier()
 {
     [prevDisplayId$ release];
     [currentDisplayId$ release];
-    [displayStacks release];
+    [displayStacks$ release];
 
     %orig;
 }
