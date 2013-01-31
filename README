@@ -34,12 +34,12 @@ NOTE: While I would prefer that you do not distribute your own package, and that
 
 To install the package created in the previous step:
 
-1. $ export FW_DEVICE_IP=<your device's IP address>
-2. $ export FW_DEVICE_PORT=<your device's ssh port>
+1. $ export THEOS_DEVICE_IP=<your device's IP address>
+2. $ export THEOS_DEVICE_PORT=<your device's ssh port>
 3. $ make install
 
 ---
 
 For more information about Theos, the build system used for this project, see:
-  
+
   http://iphonedevwiki.net/index.php/Theos/Getting_Started
