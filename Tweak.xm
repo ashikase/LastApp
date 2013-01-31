@@ -3,11 +3,11 @@
  * Type: iPhone OS SpringBoard extension (MobileSubstrate-based)
  * Description: Quickly switch to the previously-active application
  * Author: Lance Fetters (aka. ashikase)
- * Last-modified: 2011-01-02 00:58:55
+ * Last-modified: 2013-01-31 15:02:51
  */
 
 /**
- * Copyright (C) 2010-2011  Lance Fetters (aka. ashikase)
+ * Copyright (C) 2010-2012  Lance Fetters (aka. ashikase)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,11 @@
 
 
 #import <libactivator/libactivator.h>
- 
+
+#ifndef kCFCoreFoundationVersionNumber_iOS_4_0
+#define kCFCoreFoundationVersionNumber_iOS_4_0 550.32
+#endif
+
 @interface SBDisplay : NSObject
 - (void)setActivationSetting:(unsigned)setting flag:(BOOL)flag;
 - (void)setDeactivationSetting:(unsigned)setting flag:(BOOL)flag;
@@ -150,8 +154,6 @@ NSMutableArray *displayStacks = nil;
 
 //==============================================================================
 
-static BOOL isFirmware3x_ = NO;
-
 static BOOL shouldBackground_ = NO;
 
 static NSString *currentDisplayId_ = nil;
@@ -228,12 +230,12 @@ static BOOL canInvoke()
                 [SBWPreActivateDisplayStack pushDisplay:toApp];
             } else {
                 // Switching from another app; activate previously-active app
-                if (isFirmware3x_) {
+                if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_4_0) {
                     // Firmware 3.x
                     [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
                     [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
                 } else {
-                    // Firmware 4.x
+                    // Firmware 4.x+
                     [toApp setActivationSetting:0x80 flag:YES]; // animateOthersSuspension
                     [toApp setActivationSetting:0x40000 flag:YES]; // appToApp
                 }
@@ -284,9 +286,6 @@ __attribute__((constructor)) static void init()
     NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
     if (![identifier isEqualToString:@"com.apple.springboard"])
         return;
-
-    // Determine firmware version
-    isFirmware3x_ = (class_getInstanceMethod(objc_getClass("SBApplication"), @selector(pid)) != NULL);
 
     // Initialize hooks
     %init;
