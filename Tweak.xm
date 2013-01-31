@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 15:01:16
+ * Last-modified: 2013-01-31 15:08:22
  */
 
 #import <libactivator/libactivator.h>
@@ -179,7 +179,7 @@ static BOOL canInvoke()
     }
 }
 
-%new(v@:@)
+%new
 - (void)switchToLastApp
 {
     if (!canInvoke()) return;
