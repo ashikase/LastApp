@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 23:03:45
+ * Last-modified: 2013-01-31 23:17:42
  */
 
 #import <libactivator/libactivator.h>
@@ -50,6 +50,7 @@
 
 @interface SBIconController : NSObject
 + (id)sharedInstance;
+- (BOOL)isEditing;
 @end
 
 @interface SBPowerDownController : SBAlert
@@ -180,8 +181,8 @@ static BOOL canInvoke()
     SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
     return !([awayCont isLocked]
             || [awayCont isMakingEmergencyCall]
-            || [[objc_getClass("SBIconController") sharedInstance] isEditing]
-            || [[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
+            || [(SBIconController *)[objc_getClass("SBIconController") sharedInstance] isEditing]
+            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
 }
 
 static inline SBApplication *topApplication()
@@ -214,7 +215,7 @@ static inline NSString *topApplicationIdentifier()
     %orig;
 
     if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]
-            || [[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
+            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
             // Ignore lock screen and power-down screen
             return;
     }
@@ -242,7 +243,7 @@ static inline NSString *topApplicationIdentifier()
     NSString *fromIdent = [fromApp displayIdentifier];
     if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
-        SBApplication *toApp = [[objc_getClass("SBApplicationController") sharedInstance]
+        SBApplication *toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
             applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         if (toApp) {
             if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
