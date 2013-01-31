@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 15:10:03
+ * Last-modified: 2013-01-31 15:17:06
  */
 
 #import <libactivator/libactivator.h>
@@ -121,10 +121,10 @@ NSMutableArray *displayStacks = nil;
 
 //==============================================================================
 
-static BOOL shouldBackground_ = NO;
+static BOOL shouldBackground$ = NO;
 
-static NSString *currentDisplayId_ = nil;
-static NSString *prevDisplayId_ = nil;
+static NSString *currentDisplayId$ = nil;
+static NSString *prevDisplayId$ = nil;
 
 static BOOL canInvoke()
 {
@@ -149,8 +149,8 @@ static BOOL canInvoke()
 
 - (void)dealloc
 {
-    [prevDisplayId_ release];
-    [currentDisplayId_ release];
+    [prevDisplayId$ release];
+    [currentDisplayId$ release];
     [displayStacks release];
 
     %orig;
@@ -167,15 +167,15 @@ static BOOL canInvoke()
     }
 
     NSString *displayId = [[SBWActiveDisplayStack topApplication] displayIdentifier];
-    if (displayId && ![displayId isEqualToString:currentDisplayId_]) {
+    if (displayId && ![displayId isEqualToString:currentDisplayId$]) {
         // Active application has changed
         // NOTE: SpringBoard is purposely ignored
         // Store the previously-current app as the previous app
-        [prevDisplayId_ autorelease];
-        prevDisplayId_ = currentDisplayId_;
+        [prevDisplayId$ autorelease];
+        prevDisplayId$ = currentDisplayId$;
 
         // Store the new current app
-        currentDisplayId_ = [displayId copy];
+        currentDisplayId$ = [displayId copy];
     }
 }
 
@@ -186,10 +186,10 @@ static BOOL canInvoke()
 
     SBApplication *fromApp = [SBWActiveDisplayStack topApplication];
     NSString *fromIdent = [fromApp displayIdentifier];
-    if (![fromIdent isEqualToString:prevDisplayId_]) {
+    if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
         SBApplication *toApp = [[objc_getClass("SBApplicationController") sharedInstance]
-            applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId_ : currentDisplayId_)];
+            applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         if (toApp) {
             [toApp setDisplaySetting:0x4 flag:YES]; // animate
 
@@ -208,7 +208,7 @@ static BOOL canInvoke()
                     [toApp setActivationSetting:0x40000 flag:YES]; // appToApp
                 }
 
-                if (shouldBackground_) {
+                if (shouldBackground$) {
                     // If Backgrounder is installed, enable backgrounding for current application
                     if ([self respondsToSelector:@selector(setBackgroundingEnabled:forDisplayIdentifier:)]) {
                         [self setBackgroundingEnabled:YES forDisplayIdentifier:fromIdent];
@@ -237,7 +237,7 @@ static BOOL canInvoke()
 
 static void loadPreferences()
 {
-    shouldBackground_ = (BOOL)CFPreferencesGetAppBooleanValue(CFSTR("shouldBackground"), CFSTR(APP_ID), NULL);
+    shouldBackground$ = (BOOL)CFPreferencesGetAppBooleanValue(CFSTR("shouldBackground"), CFSTR(APP_ID), NULL);
 }
 
 static void reloadPreferences(CFNotificationCenterRef center, void *observer,
