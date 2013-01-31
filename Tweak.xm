@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 22:56:27
+ * Last-modified: 2013-01-31 22:58:17
  */
 
 #import <libactivator/libactivator.h>
@@ -345,4 +345,4 @@ __attribute__((constructor)) static void init()
     [pool release];
 }
 
-/* vim: set syntax=objcpp sw=4 ts=4 sts=4 expandtab textwidth=80 ff=unix: */
+/* vim: set ft=logos sw=4 ts=4 sts=4 expandtab textwidth=80 ff=unix: */
