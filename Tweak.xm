@@ -6,13 +6,17 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 15:18:39
+ * Last-modified: 2013-01-31 22:56:27
  */
 
 #import <libactivator/libactivator.h>
 
 #ifndef kCFCoreFoundationVersionNumber_iOS_4_0
 #define kCFCoreFoundationVersionNumber_iOS_4_0 550.32
+#endif
+
+#ifndef kCFCoreFoundationVersionNumber_iOS_6_0
+#define kCFCoreFoundationVersionNumber_iOS_6_0 793.00
 #endif
 
 @interface SBDisplay : NSObject
@@ -62,6 +66,24 @@
 
 @interface SpringBoard (LastApp)
 - (void)lastApp_switchToLastApp;
+@end
+
+// iOS 6.0+
+@interface BKSWorkspace : NSObject
+- (id)topApplication;
+@end
+@interface SBAlertManager : NSObject @end
+@interface SBWorkspaceTransaction : NSObject @end
+@interface SBToAppWorkspaceTransaction : SBWorkspaceTransaction @end
+@interface SBAppToAppWorkspaceTransaction : SBToAppWorkspaceTransaction
+- (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to;
+@end
+
+@interface SBWorkspace : NSObject
+@property(readonly, assign, nonatomic) SBAlertManager *alertManager;
+@property(readonly, assign, nonatomic) BKSWorkspace *bksWorkspace;
+@property(retain, nonatomic) SBWorkspaceTransaction *currentTransaction;
+- (id)_applicationForBundleIdentifier:(id)bundleIdentifier frontmost:(BOOL)frontmost;
 @end
 
 //==============================================================================
@@ -121,6 +143,32 @@ NSMutableArray *displayStacks = nil;
 
 //==============================================================================
 
+static SBWorkspace *workspace$ = nil;
+
+%hook SBWorkspace
+
+- (id)init
+{
+    self = %orig;
+    if (self != nil) {
+        workspace$ = [self retain];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    if (workspace$ == self) {
+        [workspace$ release];
+        workspace$ = nil;
+    }
+    %orig;
+}
+
+%end
+
+//==============================================================================
+
 static BOOL shouldBackground$ = NO;
 
 static NSString *currentDisplayId$ = nil;
@@ -134,6 +182,20 @@ static BOOL canInvoke()
             || [awayCont isMakingEmergencyCall]
             || [[objc_getClass("SBIconController") sharedInstance] isEditing]
             || [[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
+}
+
+static inline SBApplication *topApplication()
+{
+    return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+        [SBWActiveDisplayStack topApplication] :
+        [workspace$ _applicationForBundleIdentifier:[workspace$.bksWorkspace topApplication] frontmost:YES];
+}
+
+static inline NSString *topApplicationIdentifier()
+{
+    return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+        [[SBWActiveDisplayStack topApplication] displayIdentifier] :
+        [workspace$.bksWorkspace topApplication];
 }
 
 %hook SpringBoard
@@ -166,7 +228,7 @@ static BOOL canInvoke()
             return;
     }
 
-    NSString *displayId = [[SBWActiveDisplayStack topApplication] displayIdentifier];
+    NSString *displayId = topApplicationIdentifier();
     if (displayId && ![displayId isEqualToString:currentDisplayId$]) {
         // Active application has changed
         // NOTE: SpringBoard is purposely ignored
@@ -184,48 +246,57 @@ static BOOL canInvoke()
 {
     if (!canInvoke()) return;
 
-    SBApplication *fromApp = [SBWActiveDisplayStack topApplication];
+
+    SBApplication *fromApp = topApplication();
     NSString *fromIdent = [fromApp displayIdentifier];
     if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
         SBApplication *toApp = [[objc_getClass("SBApplicationController") sharedInstance]
             applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         if (toApp) {
-            [toApp setDisplaySetting:0x4 flag:YES]; // animate
+            if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
+                [toApp setDisplaySetting:0x4 flag:YES]; // animate
 
-            if (fromIdent == nil) {
-                // Switching from SpringBoard; activate last "current" app
-                [SBWPreActivateDisplayStack pushDisplay:toApp];
-            } else {
-                // Switching from another app; activate previously-active app
-                if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_4_0) {
-                    // Firmware 3.x
-                    [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
-                    [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
+                if (fromIdent == nil) {
+                    // Switching from SpringBoard; activate last "current" app
+                    [SBWPreActivateDisplayStack pushDisplay:toApp];
                 } else {
-                    // Firmware 4.x+
-                    [toApp setActivationSetting:0x80 flag:YES]; // animateOthersSuspension
-                    [toApp setActivationSetting:0x40000 flag:YES]; // appToApp
-                }
-
-                if (shouldBackground$) {
-                    // If Backgrounder is installed, enable backgrounding for current application
-                    if ([self respondsToSelector:@selector(setBackgroundingEnabled:forDisplayIdentifier:)]) {
-                        [self setBackgroundingEnabled:YES forDisplayIdentifier:fromIdent];
+                    // Switching from another app; activate previously-active app
+                    if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_4_0) {
+                        // Firmware 3.x
+                        [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
+                        [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
+                    } else {
+                        // Firmware 4.x+
+                        [toApp setActivationSetting:0x80 flag:YES]; // animateOthersSuspension
+                        [toApp setActivationSetting:0x40000 flag:YES]; // appToApp
                     }
+
+                    if (shouldBackground$) {
+                        // If Backgrounder is installed, enable backgrounding for current application
+                        if ([self respondsToSelector:@selector(setBackgroundingEnabled:forDisplayIdentifier:)]) {
+                            [self setBackgroundingEnabled:YES forDisplayIdentifier:fromIdent];
+                        }
+                    }
+
+                    // NOTE: Must set animation flag for deactivation, otherwise
+                    //       application window does not disappear (reason yet unknown)
+                    [fromApp setDeactivationSetting:0x2 flag:YES]; // animate
+
+                    // Activate the target application
+                    // NOTE: will wait for deactivation of current app due to appToApp flag
+                    [SBWPreActivateDisplayStack pushDisplay:toApp];
+
+                    // Deactivate current application by moving from active to suspending stack
+                    [SBWActiveDisplayStack popDisplay:fromApp];
+                    [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
-
-                // NOTE: Must set animation flag for deactivation, otherwise
-                //       application window does not disappear (reason yet unknown)
-                [fromApp setDeactivationSetting:0x2 flag:YES]; // animate
-
-                // Activate the target application
-                // NOTE: will wait for deactivation of current app due to appToApp flag
-                [SBWPreActivateDisplayStack pushDisplay:toApp];
-
-                // Deactivate current application by moving from active to suspending stack
-                [SBWActiveDisplayStack popDisplay:fromApp];
-                [SBWSuspendingDisplayStack pushDisplay:fromApp];
+            } else {
+                SBAlertManager *alertManager = workspace$.alertManager;
+                SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
+                    initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
+                workspace$.currentTransaction = transaction;
+                [transaction release];
             }
         }
     }
