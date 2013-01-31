@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 14:56:13
+ * Last-modified: 2013-01-31 15:01:16
  */
 
 #import <libactivator/libactivator.h>
@@ -67,31 +67,29 @@
 //==============================================================================
 
 @interface LastAppActivator : NSObject <LAListener>
-{
-}
 @end
 
 @implementation LastAppActivator
- 
+
 + (void)load
 {
     static LastAppActivator *listener = nil;
     if (listener == nil) {
         // Create LastApp's event listener and register it with libactivator
         listener = [[LastAppActivator alloc] init];
-	    [[LAActivator sharedInstance] registerListener:listener forName:@APP_ID];
+        [[LAActivator sharedInstance] registerListener:listener forName:@APP_ID];
     }
 }
- 
+
 - (void)activator:(LAActivator *)activator receiveEvent:(LAEvent *)event
 {
     SpringBoard *springBoard = (SpringBoard *)[UIApplication sharedApplication];
     [springBoard switchToLastApp];
- 
+
     // Prevent the default OS implementation
-	event.handled = YES;
+    event.handled = YES;
 }
- 
+
 @end
 
 //==============================================================================
@@ -154,6 +152,7 @@ static BOOL canInvoke()
     [prevDisplayId_ release];
     [currentDisplayId_ release];
     [displayStacks release];
+
     %orig;
 }
 
@@ -162,9 +161,10 @@ static BOOL canInvoke()
     %orig;
 
     if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]
-            || [[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront])
+            || [[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
             // Ignore lock screen and power-down screen
             return;
+    }
 
     NSString *displayId = [[SBWActiveDisplayStack topApplication] displayIdentifier];
     if (displayId && ![displayId isEqualToString:currentDisplayId_]) {
@@ -182,8 +182,7 @@ static BOOL canInvoke()
 %new(v@:@)
 - (void)switchToLastApp
 {
-    if (!canInvoke())
-        return;
+    if (!canInvoke()) return;
 
     SBApplication *fromApp = [SBWActiveDisplayStack topApplication];
     NSString *fromIdent = [fromApp displayIdentifier];
@@ -199,7 +198,7 @@ static BOOL canInvoke()
                 [SBWPreActivateDisplayStack pushDisplay:toApp];
             } else {
                 // Switching from another app; activate previously-active app
-                if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_4_0) {
+                if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_4_0) {
                     // Firmware 3.x
                     [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
                     [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
@@ -209,10 +208,12 @@ static BOOL canInvoke()
                     [toApp setActivationSetting:0x40000 flag:YES]; // appToApp
                 }
 
-                if (shouldBackground_)
+                if (shouldBackground_) {
                     // If Backgrounder is installed, enable backgrounding for current application
-                    if ([self respondsToSelector:@selector(setBackgroundingEnabled:forDisplayIdentifier:)])
+                    if ([self respondsToSelector:@selector(setBackgroundingEnabled:forDisplayIdentifier:)]) {
                         [self setBackgroundingEnabled:YES forDisplayIdentifier:fromIdent];
+                    }
+                }
 
                 // NOTE: Must set animation flag for deactivation, otherwise
                 //       application window does not disappear (reason yet unknown)
@@ -253,8 +254,9 @@ __attribute__((constructor)) static void init()
 
     // NOTE: This library should only be loaded for SpringBoard
     NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
-    if (![identifier isEqualToString:@"com.apple.springboard"])
+    if (![identifier isEqualToString:@"com.apple.springboard"]) {
         return;
+    }
 
     // Initialize hooks
     %init;
