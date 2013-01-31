@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 15:08:22
+ * Last-modified: 2013-01-31 15:10:03
  */
 
 #import <libactivator/libactivator.h>
@@ -61,7 +61,7 @@
 @end
 
 @interface SpringBoard (LastApp)
-- (void)switchToLastApp;
+- (void)lastApp_switchToLastApp;
 @end
 
 //==============================================================================
@@ -84,7 +84,7 @@
 - (void)activator:(LAActivator *)activator receiveEvent:(LAEvent *)event
 {
     SpringBoard *springBoard = (SpringBoard *)[UIApplication sharedApplication];
-    [springBoard switchToLastApp];
+    [springBoard lastApp_switchToLastApp];
 
     // Prevent the default OS implementation
     event.handled = YES;
@@ -180,7 +180,7 @@ static BOOL canInvoke()
 }
 
 %new
-- (void)switchToLastApp
+- (void)lastApp_switchToLastApp
 {
     if (!canInvoke()) return;
 
