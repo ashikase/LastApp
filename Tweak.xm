@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 22:59:17
+ * Last-modified: 2013-01-31 23:03:45
  */
 
 #import <libactivator/libactivator.h>
@@ -124,7 +124,7 @@ NSMutableArray *displayStacks$ = nil;
 #define SBWSuspendingDisplayStack         [displayStacks$ objectAtIndex:2]
 #define SBWSuspendedEventOnlyDisplayStack [displayStacks$ objectAtIndex:3]
 
-%hook SBDisplayStack
+%hook SBDisplayStack %group GFirmware_LT_60
 
 - (id)init
 {
@@ -139,13 +139,13 @@ NSMutableArray *displayStacks$ = nil;
     %orig;
 }
 
-%end
+%end %end
 
 //==============================================================================
 
 static SBWorkspace *workspace$ = nil;
 
-%hook SBWorkspace
+%hook SBWorkspace %group GFirmware_GTE_60
 
 - (id)init
 {
@@ -165,7 +165,7 @@ static SBWorkspace *workspace$ = nil;
     %orig;
 }
 
-%end
+%end %end
 
 //==============================================================================
 
@@ -199,15 +199,6 @@ static inline NSString *topApplicationIdentifier()
 }
 
 %hook SpringBoard
-
-- (void)applicationDidFinishLaunching:(UIApplication *)application
-{
-    // NOTE: SpringBoard creates four stacks at startup
-    // NOTE: Must create array before calling original implementation
-    displayStacks$ = [[NSMutableArray alloc] initWithCapacity:4];
-
-    %orig;
-}
 
 - (void)dealloc
 {
@@ -306,6 +297,21 @@ static inline NSString *topApplicationIdentifier()
 
 //==============================================================================
 
+%hook SpringBoard %group GFirmware_LT_60
+
+- (void)applicationDidFinishLaunching:(UIApplication *)application
+{
+    // NOTE: SpringBoard creates four stacks at startup
+    // NOTE: Must create array before calling original implementation
+    displayStacks$ = [[NSMutableArray alloc] initWithCapacity:4];
+
+    %orig;
+}
+
+%end %end
+
+//==============================================================================
+
 static void loadPreferences()
 {
     shouldBackground$ = (BOOL)CFPreferencesGetAppBooleanValue(CFSTR("shouldBackground"), CFSTR(APP_ID), NULL);
@@ -328,6 +334,12 @@ __attribute__((constructor)) static void init()
     if ([identifier isEqualToString:@"com.apple.springboard"]) {
         // Initialize hooks
         %init;
+
+        if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
+            %init(GFirmware_LT_60);
+        } else {
+            %init(GFirmware_GTE_60);
+        }
 
         // Load preferences
         loadPreferences();
