@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-01-31 23:17:42
+ * Last-modified: 2013-02-14 23:58:57
  */
 
 #import <libactivator/libactivator.h>
@@ -146,6 +146,8 @@ NSMutableArray *displayStacks$ = nil;
 
 static SBWorkspace *workspace$ = nil;
 
+static id scheduledTransaction$ = nil;
+
 %hook SBWorkspace %group GFirmware_GTE_60
 
 - (id)init
@@ -164,6 +166,17 @@ static SBWorkspace *workspace$ = nil;
         workspace$ = nil;
     }
     %orig;
+}
+
+- (void)transactionDidFinish:(id)transaction success:(BOOL)success
+{
+    %orig;
+
+    if (scheduledTransaction$ != nil) {
+        [self setCurrentTransaction:scheduledTransaction$];
+        [scheduledTransaction$ release];
+        scheduledTransaction$ = nil;
+    }
 }
 
 %end %end
@@ -287,7 +300,12 @@ static inline NSString *topApplicationIdentifier()
                 SBAlertManager *alertManager = workspace$.alertManager;
                 SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
                     initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
-                workspace$.currentTransaction = transaction;
+                if ([workspace$ currentTransaction] == nil) {
+                    [workspace$ setCurrentTransaction:transaction];
+                } else if (scheduledTransaction$ == nil) {
+                    // NOTE: Don't schedule more than one transaction.
+                    scheduledTransaction$ = [transaction retain];
+                }
                 [transaction release];
             }
         }
