@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-02-14 23:58:57
+ * Last-modified: 2013-05-13 10:26:24
  */
 
 #import <libactivator/libactivator.h>
@@ -77,7 +77,7 @@
 @interface SBWorkspaceTransaction : NSObject @end
 @interface SBToAppWorkspaceTransaction : SBWorkspaceTransaction @end
 @interface SBAppToAppWorkspaceTransaction : SBToAppWorkspaceTransaction
-- (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to;
+- (id)initWithWorkspace:(BKSWorkspace *)workspace alertManager:(SBAlertManager *)manager from:(SBApplication *)from to:(SBApplication *)to;
 @end
 
 @interface SBWorkspace : NSObject
@@ -86,6 +86,16 @@
 @property(retain, nonatomic) SBWorkspaceTransaction *currentTransaction;
 - (id)_applicationForBundleIdentifier:(id)bundleIdentifier frontmost:(BOOL)frontmost;
 @end
+
+@interface SBWorkspaceEvent : NSObject
++ (id)eventWithLabel:(NSString *)label handler:(void (^)(void))handler;
+@end
+
+@interface SBWorkspaceEventQueue : NSObject
++ (SBWorkspaceEventQueue *)sharedInstance;
+- (void)executeOrAppendEvent:(SBWorkspaceEvent *)event;
+@end
+
 
 //==============================================================================
 
@@ -146,8 +156,6 @@ NSMutableArray *displayStacks$ = nil;
 
 static SBWorkspace *workspace$ = nil;
 
-static id scheduledTransaction$ = nil;
-
 %hook SBWorkspace %group GFirmware_GTE_60
 
 - (id)init
@@ -168,17 +176,6 @@ static id scheduledTransaction$ = nil;
     %orig;
 }
 
-- (void)transactionDidFinish:(id)transaction success:(BOOL)success
-{
-    %orig;
-
-    if (scheduledTransaction$ != nil) {
-        [self setCurrentTransaction:scheduledTransaction$];
-        [scheduledTransaction$ release];
-        scheduledTransaction$ = nil;
-    }
-}
-
 %end %end
 
 //==============================================================================
@@ -191,11 +188,11 @@ static NSString *prevDisplayId$ = nil;
 static BOOL canInvoke()
 {
     // Should not invoke if either lock screen or power-off screen is active
-    SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
+    SBAwayController *awayCont = [%c(SBAwayController) sharedAwayController];
     return !([awayCont isLocked]
             || [awayCont isMakingEmergencyCall]
-            || [(SBIconController *)[objc_getClass("SBIconController") sharedInstance] isEditing]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
+            || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
+            || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]);
 }
 
 static inline SBApplication *topApplication()
@@ -227,8 +224,8 @@ static inline NSString *topApplicationIdentifier()
 {
     %orig;
 
-    if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
+    if ([[%c(SBAwayController) sharedAwayController] isLocked]
+            || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]) {
             // Ignore lock screen and power-down screen
             return;
     }
@@ -251,12 +248,11 @@ static inline NSString *topApplicationIdentifier()
 {
     if (!canInvoke()) return;
 
-
     SBApplication *fromApp = topApplication();
     NSString *fromIdent = [fromApp displayIdentifier];
     if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
-        SBApplication *toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
+        SBApplication *toApp = [(SBApplicationController *)[%c(SBApplicationController) sharedInstance]
             applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         if (toApp) {
             if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
@@ -297,16 +293,18 @@ static inline NSString *topApplicationIdentifier()
                     [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
             } else {
-                SBAlertManager *alertManager = workspace$.alertManager;
-                SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
-                    initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
-                if ([workspace$ currentTransaction] == nil) {
+                NSString *label = [NSString stringWithFormat:@"ActivateApplication = %@", [toApp displayIdentifier]];
+                SBWorkspaceEvent *workspaceEvent = [%c(SBWorkspaceEvent) eventWithLabel:label handler:^{
+                    SBAlertManager *alertManager = workspace$.alertManager;
+                    SBAppToAppWorkspaceTransaction *transaction = [[%c(SBAppToAppWorkspaceTransaction) alloc]
+                        initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
+
                     [workspace$ setCurrentTransaction:transaction];
-                } else if (scheduledTransaction$ == nil) {
-                    // NOTE: Don't schedule more than one transaction.
-                    scheduledTransaction$ = [transaction retain];
-                }
-                [transaction release];
+
+                    [transaction release];
+                }];
+
+                [(SBWorkspaceEventQueue *)[%c(SBWorkspaceEventQueue) sharedInstance] executeOrAppendEvent:workspaceEvent];
             }
         }
     }
