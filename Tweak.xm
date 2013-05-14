@@ -87,12 +87,12 @@
 - (id)_applicationForBundleIdentifier:(id)bundleIdentifier frontmost:(BOOL)frontmost;
 @end
 
-@interface SBWorkspaceEvent
+@interface SBWorkspaceEvent : NSObject
 + (id)eventWithLabel:(NSString *)label handler:(void (^)(void))handler;
 @end
 
-@interface SBWorkspaceEventQueue
-+ (id)sharedInstance;
+@interface SBWorkspaceEventQueue : NSObject
++ (SBWorkspaceEventQueue *)sharedInstance;
 - (void)executeOrAppendEvent:(SBWorkspaceEvent *)event;
 @end
 
@@ -188,11 +188,11 @@ static NSString *prevDisplayId$ = nil;
 static BOOL canInvoke()
 {
     // Should not invoke if either lock screen or power-off screen is active
-    SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
+    SBAwayController *awayCont = [%c(SBAwayController) sharedAwayController];
     return !([awayCont isLocked]
             || [awayCont isMakingEmergencyCall]
-            || [(SBIconController *)[objc_getClass("SBIconController") sharedInstance] isEditing]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
+            || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
+            || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]);
 }
 
 static inline SBApplication *topApplication()
@@ -224,8 +224,8 @@ static inline NSString *topApplicationIdentifier()
 {
     %orig;
 
-    if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
+    if ([[%c(SBAwayController) sharedAwayController] isLocked]
+            || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]) {
             // Ignore lock screen and power-down screen
             return;
     }
@@ -252,7 +252,7 @@ static inline NSString *topApplicationIdentifier()
     NSString *fromIdent = [fromApp displayIdentifier];
     if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
-        SBApplication *toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
+        SBApplication *toApp = [(SBApplicationController *)[%c(SBApplicationController) sharedInstance]
             applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         if (toApp) {
             if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
@@ -294,9 +294,9 @@ static inline NSString *topApplicationIdentifier()
                 }
             } else {
                 NSString *label = [NSString stringWithFormat:@"ActivateApplication = %@", [toApp displayIdentifier]];
-                SBWorkspaceEvent *workspaceEvent = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
+                SBWorkspaceEvent *workspaceEvent = [%c(SBWorkspaceEvent) eventWithLabel:label handler:^{
                     SBAlertManager *alertManager = workspace$.alertManager;
-                    SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
+                    SBAppToAppWorkspaceTransaction *transaction = [[%c(SBAppToAppWorkspaceTransaction) alloc]
                         initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
 
                     [workspace$ setCurrentTransaction:transaction];
@@ -304,7 +304,7 @@ static inline NSString *topApplicationIdentifier()
                     [transaction release];
                 }];
 
-                [[objc_getClass("SBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:workspaceEvent];
+                [(SBWorkspaceEventQueue *)[%c(SBWorkspaceEventQueue) sharedInstance] executeOrAppendEvent:workspaceEvent];
             }
         }
     }
