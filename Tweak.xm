@@ -77,7 +77,7 @@
 @interface SBWorkspaceTransaction : NSObject @end
 @interface SBToAppWorkspaceTransaction : SBWorkspaceTransaction @end
 @interface SBAppToAppWorkspaceTransaction : SBToAppWorkspaceTransaction
-- (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to;
+- (id)initWithWorkspace:(BKSWorkspace *)workspace alertManager:(SBAlertManager *)manager from:(SBApplication *)from to:(SBApplication *)to;
 @end
 
 @interface SBWorkspace : NSObject
@@ -86,6 +86,16 @@
 @property(retain, nonatomic) SBWorkspaceTransaction *currentTransaction;
 - (id)_applicationForBundleIdentifier:(id)bundleIdentifier frontmost:(BOOL)frontmost;
 @end
+
+@interface SBWorkspaceEvent
++ (id)eventWithLabel:(NSString *)label handler:(void (^)(void))handler;
+@end
+
+@interface SBWorkspaceEventQueue
++ (id)sharedInstance;
+- (void)executeOrAppendEvent:(SBWorkspaceEvent *)event;
+@end
+
 
 //==============================================================================
 
@@ -146,8 +156,6 @@ NSMutableArray *displayStacks$ = nil;
 
 static SBWorkspace *workspace$ = nil;
 
-static id scheduledTransaction$ = nil;
-
 %hook SBWorkspace %group GFirmware_GTE_60
 
 - (id)init
@@ -166,17 +174,6 @@ static id scheduledTransaction$ = nil;
         workspace$ = nil;
     }
     %orig;
-}
-
-- (void)transactionDidFinish:(id)transaction success:(BOOL)success
-{
-    %orig;
-
-    if (scheduledTransaction$ != nil) {
-        [self setCurrentTransaction:scheduledTransaction$];
-        [scheduledTransaction$ release];
-        scheduledTransaction$ = nil;
-    }
 }
 
 %end %end
@@ -251,7 +248,6 @@ static inline NSString *topApplicationIdentifier()
 {
     if (!canInvoke()) return;
 
-
     SBApplication *fromApp = topApplication();
     NSString *fromIdent = [fromApp displayIdentifier];
     if (![fromIdent isEqualToString:prevDisplayId$]) {
@@ -297,16 +293,18 @@ static inline NSString *topApplicationIdentifier()
                     [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
             } else {
-                SBAlertManager *alertManager = workspace$.alertManager;
-                SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
-                    initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
-                if ([workspace$ currentTransaction] == nil) {
+                NSString *label = [NSString stringWithFormat:@"ActivateApplication = %@", [toApp displayIdentifier]];
+                SBWorkspaceEvent *workspaceEvent = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
+                    SBAlertManager *alertManager = workspace$.alertManager;
+                    SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
+                        initWithWorkspace:workspace$.bksWorkspace alertManager:alertManager from:fromApp to:toApp];
+
                     [workspace$ setCurrentTransaction:transaction];
-                } else if (scheduledTransaction$ == nil) {
-                    // NOTE: Don't schedule more than one transaction.
-                    scheduledTransaction$ = [transaction retain];
-                }
-                [transaction release];
+
+                    [transaction release];
+                }];
+
+                [[objc_getClass("SBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:workspaceEvent];
             }
         }
     }
