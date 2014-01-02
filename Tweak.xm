@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2013-03-15 20:45:07
+ * Last-modified: 2014-01-02 16:33:11
  */
 
 #import <libactivator/libactivator.h>
@@ -17,6 +17,10 @@
 
 #ifndef kCFCoreFoundationVersionNumber_iOS_6_0
 #define kCFCoreFoundationVersionNumber_iOS_6_0 793.00
+#endif
+
+#ifndef kCFCoreFoundationVersionNumber_iOS_7_0
+#define kCFCoreFoundationVersionNumber_iOS_7_0 847.20
 #endif
 
 @interface SBDisplay : NSObject
@@ -77,7 +81,12 @@
 @interface SBWorkspaceTransaction : NSObject @end
 @interface SBToAppWorkspaceTransaction : SBWorkspaceTransaction @end
 @interface SBAppToAppWorkspaceTransaction : SBToAppWorkspaceTransaction
+@end
+@interface SBAppToAppWorkspaceTransaction (Firmware_GTE_60_LT_70)
 - (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to;
+@end
+@interface SBAppToAppWorkspaceTransaction (Firmware_GTE_70)
+- (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to activationHandler:(id)handler;
 @end
 
 @interface SBWorkspace : NSObject
@@ -179,27 +188,9 @@ static SBWorkspace *workspace$ = nil;
 
 //==============================================================================
 
-static BOOL shouldBackground$ = NO;
 
 static NSString *currentDisplayId$ = nil;
 static NSString *prevDisplayId$ = nil;
-
-static BOOL canInvoke()
-{
-    // Should not invoke if either lock screen or power-off screen is active
-    SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
-    return !([awayCont isLocked]
-            || [awayCont isMakingEmergencyCall]
-            || [(SBIconController *)[objc_getClass("SBIconController") sharedInstance] isEditing]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
-}
-
-static inline SBApplication *topApplication()
-{
-    return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
-        [SBWActiveDisplayStack topApplication] :
-        [workspace$ _applicationForBundleIdentifier:[workspace$.bksWorkspace topApplication] frontmost:YES];
-}
 
 static inline NSString *topApplicationIdentifier()
 {
@@ -208,21 +199,8 @@ static inline NSString *topApplicationIdentifier()
         [workspace$.bksWorkspace topApplication];
 }
 
-%hook SpringBoard
-
-- (void)dealloc
+static void saveTopApplication()
 {
-    [prevDisplayId$ release];
-    [currentDisplayId$ release];
-    [displayStacks$ release];
-
-    %orig;
-}
-
-- (void)frontDisplayDidChange
-{
-    %orig;
-
     if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]
             || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
             // Ignore lock screen and power-down screen
@@ -242,11 +220,49 @@ static inline NSString *topApplicationIdentifier()
     }
 }
 
+%hook SpringBoard %group GFirmware_LT_70
+- (void)frontDisplayDidChange { %orig(); saveTopApplication(); }
+%end %end
+
+%hook SpringBoard %group GFirmware_GTE_70
+- (void)frontDisplayDidChange:(SBApplication *)app { %orig(); saveTopApplication(); }
+%end %end
+
+//==============================================================================
+static BOOL shouldBackground$ = NO;
+
+static BOOL canInvoke()
+{
+    // Should not invoke if either lock screen or power-off screen is active
+    SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
+    return !([awayCont isLocked]
+            || [awayCont isMakingEmergencyCall]
+            || [(SBIconController *)[objc_getClass("SBIconController") sharedInstance] isEditing]
+            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
+}
+
+static inline SBApplication *topApplication()
+{
+    return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+        [SBWActiveDisplayStack topApplication] :
+        [workspace$ _applicationForBundleIdentifier:[workspace$.bksWorkspace topApplication] frontmost:YES];
+}
+
+%hook SpringBoard
+
+- (void)dealloc
+{
+    [prevDisplayId$ release];
+    [currentDisplayId$ release];
+    [displayStacks$ release];
+
+    %orig;
+}
+
 %new
 - (void)lastApp_switchToLastApp
 {
     if (!canInvoke()) return;
-
 
     SBApplication *fromApp = topApplication();
     NSString *fromIdent = [fromApp displayIdentifier];
@@ -297,8 +313,12 @@ static inline NSString *topApplicationIdentifier()
                 SBWorkspaceEvent *event = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
                     BKSWorkspace *workspace = [workspace$ bksWorkspace];
                     SBAlertManager *alertManager = workspace$.alertManager;
-                    SBAppToAppWorkspaceTransaction *transaction = [[objc_getClass("SBAppToAppWorkspaceTransaction") alloc]
-                        initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp];
+                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
+                    if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_7_0) {
+                        transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp];
+                    } else {
+                        transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp activationHandler:nil];
+                    }
                     [workspace$ setCurrentTransaction:transaction];
                     [transaction release];
                 }];
@@ -354,6 +374,12 @@ __attribute__((constructor)) static void init()
             %init(GFirmware_LT_60);
         } else {
             %init(GFirmware_GTE_60);
+        }
+
+        if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_7_0) {
+            %init(GFirmware_LT_70);
+        } else {
+            %init(GFirmware_GTE_70);
         }
 
         // Load preferences
