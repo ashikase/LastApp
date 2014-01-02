@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2014-01-02 16:33:11
+ * Last-modified: 2014-01-02 16:34:00
  */
 
 #import <libactivator/libactivator.h>
@@ -135,7 +135,7 @@
 
 //==============================================================================
 
-NSMutableArray *displayStacks$ = nil;
+static NSMutableArray *displayStacks$ = nil;
 
 // Display stack names
 #define SBWPreActivateDisplayStack        [displayStacks$ objectAtIndex:0]
