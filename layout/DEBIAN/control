@@ -1,6 +1,6 @@
 Package: jp.ashikase.lastapp
 Name: LastApp
-Version: 1:1.1.1
+Version: 1:1.2.0
 Architecture: iphoneos-arm
 Description: Quickly switch to previous application.
 Homepage: http://iphone-tweaks.googlecode.com/
