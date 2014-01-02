@@ -2,4 +2,5 @@
 	title = "LastApp";
 	description = "Switch to previously-active application";
 	"compatible-modes" = ("springboard", "application");
+	receives-raw-events = 1;
 }
