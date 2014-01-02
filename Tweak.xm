@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2014-01-02 16:34:00
+ * Last-modified: 2014-01-02 16:19:51
  */
 
 #import <libactivator/libactivator.h>
@@ -107,6 +107,8 @@
 
 //==============================================================================
 
+// DESC: Register the action with the Activator extension.
+
 @interface LastAppActivator : NSObject <LAListener>
 @end
 
@@ -135,6 +137,11 @@
 
 //==============================================================================
 
+// DESC: Record the display stack creation and destruction.
+// NOTE: This is necessary, as the display stack pointers are stored by
+//       SpringBoard in a local static variable, and hence are not normally
+//       (practically) accessible.
+
 static NSMutableArray *displayStacks$ = nil;
 
 // Display stack names
@@ -162,6 +169,10 @@ static NSMutableArray *displayStacks$ = nil;
 
 //==============================================================================
 
+// DESC: Record the workspace creation and destruction.
+// NOTE: As with display stacks on earlier iOS versions, the variable that holds
+//       the workspace pointer is not (practically) accessible.
+
 static SBWorkspace *workspace$ = nil;
 
 %hook SBWorkspace %group GFirmware_GTE_60
@@ -188,6 +199,8 @@ static SBWorkspace *workspace$ = nil;
 
 //==============================================================================
 
+// DESC: When the active app changes, record the identifier of the new and
+//       previous active apps.
 
 static NSString *currentDisplayId$ = nil;
 static NSString *prevDisplayId$ = nil;
@@ -229,9 +242,12 @@ static void saveTopApplication()
 %end %end
 
 //==============================================================================
+
+// DESC: Switch between the last two active apps.
+
 static BOOL shouldBackground$ = NO;
 
-static BOOL canInvoke()
+static inline BOOL canInvoke()
 {
     // Should not invoke if either lock screen or power-off screen is active
     SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
@@ -331,6 +347,8 @@ static inline SBApplication *topApplication()
 %end
 
 //==============================================================================
+
+// DESC: Create an array to record the pointers to the display stacks.
 
 %hook SpringBoard %group GFirmware_LT_60
 
