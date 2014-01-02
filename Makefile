@@ -6,7 +6,7 @@ LastApp_CFLAGS = -F$(SYSROOT)/System/Library/CoreServices -DAPP_ID=\"$(APP_ID)\"
 LastApp_LDFLAGS = -lactivator
 LastApp_FRAMEWORKS = UIKit CoreGraphics
 
-TARGET := iphone:7.0:2.0
+TARGET := iphone:7.0:3.0
 ARCHS := armv6 arm64
 
 # NOTE: The following is needed until logos is updated to not generate
