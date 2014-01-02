@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2014-01-02 16:19:51
+ * Last-modified: 2014-01-02 16:35:15
  */
 
 #import <libactivator/libactivator.h>
@@ -154,7 +154,7 @@ static NSMutableArray *displayStacks$ = nil;
 
 - (id)init
 {
-    id stack = %orig;
+    id stack = %orig();
     [displayStacks$ addObject:stack];
     return stack;
 }
@@ -162,7 +162,7 @@ static NSMutableArray *displayStacks$ = nil;
 - (void)dealloc
 {
     [displayStacks$ removeObject:self];
-    %orig;
+    %orig();
 }
 
 %end %end
@@ -179,7 +179,7 @@ static SBWorkspace *workspace$ = nil;
 
 - (id)init
 {
-    self = %orig;
+    self = %orig();
     if (self != nil) {
         workspace$ = [self retain];
     }
@@ -192,7 +192,7 @@ static SBWorkspace *workspace$ = nil;
         [workspace$ release];
         workspace$ = nil;
     }
-    %orig;
+    %orig();
 }
 
 %end %end
@@ -272,7 +272,7 @@ static inline SBApplication *topApplication()
     [currentDisplayId$ release];
     [displayStacks$ release];
 
-    %orig;
+    %orig();
 }
 
 %new
@@ -358,7 +358,7 @@ static inline SBApplication *topApplication()
     // NOTE: Must create array before calling original implementation
     displayStacks$ = [[NSMutableArray alloc] initWithCapacity:4];
 
-    %orig;
+    %orig();
 }
 
 %end %end
