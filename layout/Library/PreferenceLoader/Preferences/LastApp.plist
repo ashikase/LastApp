@@ -17,6 +17,26 @@
     <array>
         <dict>
             <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>footerText</key>
+            <string>LastApp is an Activator action. It can be assigned to an event via the Activator preferences panel.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>footerText</key>
+            <string>If Backgrounder is installed, this option will enable backgrounding for the current app before minimizing it (if not already enabled).</string>
+            <key>pl_filter</key>
+            <dict>
+                <key>CoreFoundationVersion</key>
+                <array>
+                    <real>0</real>
+                    <real>793.00</real>
+                </array>
+            </dict>
+        </dict>
+        <dict>
+            <key>cell</key>
             <string>PSSwitchCell</string>
             <key>label</key>
             <string>Backgrounding</string>
@@ -28,18 +48,14 @@
             <string>jp.ashikase.lastapp</string>
             <key>PostNotification</key>
             <string>jp.ashikase.lastapp-settings</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
-            <key>footerText</key>
-            <string>This option will enable backgrounding for the current app before minimizing it (if not already enabled).</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
-            <key>footerText</key>
-            <string>(Requires Backgrounder)</string>
+            <key>pl_filter</key>
+            <dict>
+                <key>CoreFoundationVersion</key>
+                <array>
+                    <real>0</real>
+                    <real>793.00</real>
+                </array>
+            </dict>
         </dict>
     </array>
 </dict>
