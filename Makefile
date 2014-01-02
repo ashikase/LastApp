@@ -6,11 +6,12 @@ LastApp_CFLAGS = -F$(SYSROOT)/System/Library/CoreServices -DAPP_ID=\"$(APP_ID)\"
 LastApp_LDFLAGS = -lactivator
 LastApp_FRAMEWORKS = UIKit CoreGraphics
 
-# Uncomment the following lines when compiling with self-built version of LLVM/Clang
-#export ARCHS =
-#export SDKTARGET = arm-apple-darwin11
-#export TARGET_CXX = clang -ccc-host-triple $(SDKTARGET)
-#export TARGET_LD = $(SDKTARGET)-g++
+TARGET := iphone:7.0:2.0
+ARCHS := armv6 arm64
+
+# NOTE: The following is needed until logos is updated to not generate
+#       unnecessary 'ungrouped' objects.
+GO_EASY_ON_ME := 1
 
 include theos/makefiles/common.mk
 include theos/makefiles/tweak.mk
