@@ -6,7 +6,7 @@
  * Author: Lance Fetters (aka. ashikase)
  * License: New BSD (See LICENSE file for details)
  *
- * Last-modified: 2014-01-02 16:35:15
+ * Last-modified: 2014-08-20 14:21:35
  */
 
 #import <libactivator/libactivator.h>
@@ -103,6 +103,17 @@
 @interface SBWorkspaceEventQueue : NSObject
 + (id)sharedInstance;
 - (void)executeOrAppendEvent:(id)event;
+@end
+
+// iOS 7.0+
+@interface SBTelephonyManager : NSObject
++ (id)sharedTelephonyManager;
+- (BOOL)isEmergencyCallActive;
+@end
+
+@interface SBUserAgent : NSObject
++ (id)sharedUserAgent;
+- (BOOL)deviceIsPasscodeLocked;
 @end
 
 //==============================================================================
@@ -249,12 +260,23 @@ static BOOL shouldBackground$ = NO;
 
 static inline BOOL canInvoke()
 {
-    // Should not invoke if either lock screen or power-off screen is active
-    SBAwayController *awayCont = [objc_getClass("SBAwayController") sharedAwayController];
-    return !([awayCont isLocked]
-            || [awayCont isMakingEmergencyCall]
-            || [(SBIconController *)[objc_getClass("SBIconController") sharedInstance] isEditing]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]);
+    // Should not invoke if either lock screen or power-off screen is active.
+    BOOL isLocked = NO;
+    BOOL isEmergencyCall = NO;
+
+    if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_7_0) {
+        SBAwayController *awayCont = [%c(SBAwayController) sharedAwayController];
+        isLocked = [awayCont isLocked];
+        isEmergencyCall = [awayCont isMakingEmergencyCall];
+    } else {
+        isLocked = [[%c(SBUserAgent) sharedUserAgent] deviceIsPasscodeLocked];
+        isEmergencyCall = [[%c(SBTelephonyManager) sharedTelephonyManager] isEmergencyCallActive];
+    }
+
+    return !(isLocked
+            || isEmergencyCall
+            || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
+            || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]);
 }
 
 static inline SBApplication *topApplication()
