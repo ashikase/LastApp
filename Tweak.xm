@@ -23,21 +23,34 @@
 #define kCFCoreFoundationVersionNumber_iOS_7_0 847.20
 #endif
 
+#ifndef kCFCoreFoundationVersionNumber_iOS_8_0_0
+#define kCFCoreFoundationVersionNumber_iOS_8_0_0 1140.10
+#endif
+
 @interface SBDisplay : NSObject
 - (void)setActivationSetting:(unsigned)setting flag:(BOOL)flag;
 - (void)setDeactivationSetting:(unsigned)setting flag:(BOOL)flag;
 - (void)setDisplaySetting:(unsigned)setting flag:(BOOL)flag;
 @end
 
-@interface SBApplication : SBDisplay
+@interface SBApplication : SBDisplay  @end
+@interface SBApplication (Firmware_LT_80)
 - (id)displayIdentifier;
+@end
+@interface SBApplication (Firmware_GTE_80)
+- (id)bundleIdentifier;
 @end
 
 @interface SBAlert : SBDisplay @end
 
 @interface SBApplicationController : NSObject
 + (id)sharedInstance;
+@end
+@interface SBApplicationController (Firmware_LT_80)
 - (id)applicationWithDisplayIdentifier:(id)displayIdentifier;
+@end
+@interface SBApplicationController (Firmware_GTE_80)
+- (id)applicationWithBundleIdentifier:(id)bundleIdentifier;
 @end
 
 @interface SBAwayController : SBAlert
@@ -85,8 +98,11 @@
 @interface SBAppToAppWorkspaceTransaction (Firmware_GTE_60_LT_70)
 - (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to;
 @end
-@interface SBAppToAppWorkspaceTransaction (Firmware_GTE_70)
+@interface SBAppToAppWorkspaceTransaction (Firmware_GTE_70_LT_80)
 - (id)initWithWorkspace:(id)workspace alertManager:(id)manager from:(id)from to:(id)to activationHandler:(id)handler;
+@end
+@interface SBAppToAppWorkspaceTransaction (Firmware_GTE_80)
+- (id)initWithAlertManager:(id)manager from:(id)from to:(id)to withResult:(id)handler;
 @end
 
 @interface SBWorkspace : NSObject
@@ -101,6 +117,23 @@
 @end
 
 @interface SBWorkspaceEventQueue : NSObject
++ (id)sharedInstance;
+- (void)executeOrAppendEvent:(id)event;
+@end
+
+// iOS 8.0+
+@interface SpringBoard (Firmware_GTE_80)
+- (id)_accessibilityFrontMostApplication;
+@end
+
+@interface BSEventQueueEvent : NSObject
++ (id)eventWithName:(id)name handler:(id)handler;
+@end
+
+@interface FBWorkspaceEvent : BSEventQueueEvent
+@end
+
+@interface FBWorkspaceEventQueue : NSObject
 + (id)sharedInstance;
 - (void)executeOrAppendEvent:(id)event;
 @end
@@ -218,17 +251,27 @@ static NSString *prevDisplayId$ = nil;
 
 static inline NSString *topApplicationIdentifier()
 {
-    return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
-        [[SBWActiveDisplayStack topApplication] displayIdentifier] :
-        [workspace$.bksWorkspace topApplication];
+    if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+        return [[(SpringBoard *)[UIApplication sharedApplication] _accessibilityFrontMostApplication] bundleIdentifier];
+    } else {
+        return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+            [[SBWActiveDisplayStack topApplication] displayIdentifier] :
+            [workspace$.bksWorkspace topApplication];
+    }
 }
 
 static void saveTopApplication()
 {
-    if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]
-            || [(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
-            // Ignore lock screen and power-down screen
+    if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]) {
+        // Ignore lock screen
+        return;
+    }
+
+    if ([objc_getClass("SBPowerDownController") respondsToSelector:@selector(sharedInstance)]) {
+        if ([(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
+            // Ignore power-down screen
             return;
+        }
     }
 
     NSString *displayId = topApplicationIdentifier();
@@ -273,17 +316,27 @@ static inline BOOL canInvoke()
         isEmergencyCall = [[%c(SBTelephonyManager) sharedTelephonyManager] isEmergencyCallActive];
     }
 
-    return !(isLocked
-            || isEmergencyCall
-            || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
-            || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]);
+    if ([objc_getClass("SBPowerDownController") respondsToSelector:@selector(sharedInstance)]) {
+        return !(isLocked
+                || isEmergencyCall
+                || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
+                || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]);
+    } else {
+        return !(isLocked
+                || isEmergencyCall
+                || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]);
+    }
 }
 
 static inline SBApplication *topApplication()
 {
-    return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
-        [SBWActiveDisplayStack topApplication] :
-        [workspace$ _applicationForBundleIdentifier:[workspace$.bksWorkspace topApplication] frontmost:YES];
+    if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+        return [(SpringBoard *)[UIApplication sharedApplication] _accessibilityFrontMostApplication];
+    } else {
+        return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+            [SBWActiveDisplayStack topApplication] :
+            [workspace$ _applicationForBundleIdentifier:[workspace$.bksWorkspace topApplication] frontmost:YES];
+    }
 }
 
 %hook SpringBoard
@@ -303,11 +356,23 @@ static inline SBApplication *topApplication()
     if (!canInvoke()) return;
 
     SBApplication *fromApp = topApplication();
-    NSString *fromIdent = [fromApp displayIdentifier];
+    NSString *fromIdent;
+    if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+        fromIdent = [fromApp bundleIdentifier];
+    } else {
+        fromIdent = [fromApp displayIdentifier];
+    }
     if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
-        SBApplication *toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
-            applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
+        SBApplication *toApp;
+        if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+            toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
+                applicationWithBundleIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
+        } else {
+            toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
+                applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
+        }
+
         if (toApp) {
             if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
                 [toApp setDisplaySetting:0x4 flag:YES]; // animate
@@ -346,6 +411,16 @@ static inline SBApplication *topApplication()
                     [SBWActiveDisplayStack popDisplay:fromApp];
                     [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
+            } else if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+                NSString *name = @"ActivateLastApp";
+                FBWorkspaceEvent *event = [objc_getClass("FBWorkspaceEvent") eventWithName:name handler:^{
+                    SBAlertManager *alertManager = workspace$.alertManager;
+                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
+                    transaction = [transaction initWithAlertManager:alertManager from:fromApp to:toApp withResult:nil];
+                    [workspace$ setCurrentTransaction:transaction];
+                    [transaction release];
+                }];
+                [(FBWorkspaceEventQueue *)[objc_getClass("FBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
             } else {
                 NSString *label = @"ActivateLastApp";
                 SBWorkspaceEvent *event = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
