@@ -11,21 +11,7 @@
 
 #import <libactivator/libactivator.h>
 
-#ifndef kCFCoreFoundationVersionNumber_iOS_4_0
-#define kCFCoreFoundationVersionNumber_iOS_4_0 550.32
-#endif
-
-#ifndef kCFCoreFoundationVersionNumber_iOS_6_0
-#define kCFCoreFoundationVersionNumber_iOS_6_0 793.00
-#endif
-
-#ifndef kCFCoreFoundationVersionNumber_iOS_7_0
-#define kCFCoreFoundationVersionNumber_iOS_7_0 847.20
-#endif
-
-#ifndef kCFCoreFoundationVersionNumber_iOS_8_0_0
-#define kCFCoreFoundationVersionNumber_iOS_8_0_0 1140.10
-#endif
+#include "firmware.h"
 
 @interface SBDisplay : NSObject
 - (void)setActivationSetting:(unsigned)setting flag:(BOOL)flag;
@@ -251,10 +237,10 @@ static NSString *prevDisplayId$ = nil;
 
 static inline NSString *topApplicationIdentifier()
 {
-    if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+    if (IOS_GTE(8_0)) {
         return [[(SpringBoard *)[UIApplication sharedApplication] _accessibilityFrontMostApplication] bundleIdentifier];
     } else {
-        return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+        return (IOS_LT(6_0)) ?
             [[SBWActiveDisplayStack topApplication] displayIdentifier] :
             [workspace$.bksWorkspace topApplication];
     }
@@ -307,7 +293,7 @@ static inline BOOL canInvoke()
     BOOL isLocked = NO;
     BOOL isEmergencyCall = NO;
 
-    if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_7_0) {
+    if (IOS_LT(7_0)) {
         SBAwayController *awayCont = [%c(SBAwayController) sharedAwayController];
         isLocked = [awayCont isLocked];
         isEmergencyCall = [awayCont isMakingEmergencyCall];
@@ -330,10 +316,10 @@ static inline BOOL canInvoke()
 
 static inline SBApplication *topApplication()
 {
-    if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+    if (IOS_GTE(8_0)) {
         return [(SpringBoard *)[UIApplication sharedApplication] _accessibilityFrontMostApplication];
     } else {
-        return (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) ?
+        return (IOS_LT(6_0)) ?
             [SBWActiveDisplayStack topApplication] :
             [workspace$ _applicationForBundleIdentifier:[workspace$.bksWorkspace topApplication] frontmost:YES];
     }
@@ -357,7 +343,7 @@ static inline SBApplication *topApplication()
 
     SBApplication *fromApp = topApplication();
     NSString *fromIdent;
-    if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+    if (IOS_GTE(8_0)) {
         fromIdent = [fromApp bundleIdentifier];
     } else {
         fromIdent = [fromApp displayIdentifier];
@@ -365,7 +351,7 @@ static inline SBApplication *topApplication()
     if (![fromIdent isEqualToString:prevDisplayId$]) {
         // App to switch to is not the current app
         SBApplication *toApp;
-        if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+        if (IOS_GTE(8_0)) {
             toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
                 applicationWithBundleIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         } else {
@@ -374,7 +360,7 @@ static inline SBApplication *topApplication()
         }
 
         if (toApp) {
-            if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
+            if (IOS_LT(6_0)) {
                 [toApp setDisplaySetting:0x4 flag:YES]; // animate
 
                 if (fromIdent == nil) {
@@ -382,7 +368,7 @@ static inline SBApplication *topApplication()
                     [SBWPreActivateDisplayStack pushDisplay:toApp];
                 } else {
                     // Switching from another app; activate previously-active app
-                    if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_4_0) {
+                    if (IOS_LT(4_0)) {
                         // Firmware 3.x
                         [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
                         [toApp setActivationSetting:0x20000 flag:YES]; // appToApp
@@ -411,7 +397,7 @@ static inline SBApplication *topApplication()
                     [SBWActiveDisplayStack popDisplay:fromApp];
                     [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
-            } else if (kCFCoreFoundationVersionNumber >= kCFCoreFoundationVersionNumber_iOS_8_0_0) {
+            } else if (IOS_GTE(8_0)) {
                 NSString *name = @"ActivateLastApp";
                 FBWorkspaceEvent *event = [objc_getClass("FBWorkspaceEvent") eventWithName:name handler:^{
                     SBAlertManager *alertManager = workspace$.alertManager;
@@ -427,7 +413,7 @@ static inline SBApplication *topApplication()
                     BKSWorkspace *workspace = [workspace$ bksWorkspace];
                     SBAlertManager *alertManager = workspace$.alertManager;
                     SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
-                    if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_7_0) {
+                    if (IOS_LT(7_0)) {
                         transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp];
                     } else {
                         transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp activationHandler:nil];
@@ -485,13 +471,13 @@ __attribute__((constructor)) static void init()
         // Initialize hooks
         %init;
 
-        if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_6_0) {
+        if (IOS_LT(6_0)) {
             %init(GFirmware_LT_60);
         } else {
             %init(GFirmware_GTE_60);
         }
 
-        if (kCFCoreFoundationVersionNumber < kCFCoreFoundationVersionNumber_iOS_7_0) {
+        if (IOS_LT(7_0)) {
             %init(GFirmware_LT_70);
         } else {
             %init(GFirmware_GTE_70);
