@@ -136,13 +136,13 @@ static inline NSString *topApplicationIdentifier() {
 }
 
 static void saveTopApplication() {
-    if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]) {
+    if ([[%c(SBAwayController) sharedAwayController] isLocked]) {
         // Ignore lock screen.
         return;
     }
 
-    if ([objc_getClass("SBPowerDownController") respondsToSelector:@selector(sharedInstance)]) {
-        if ([(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
+    if ([%c(SBPowerDownController) respondsToSelector:@selector(sharedInstance)]) {
+        if ([(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]) {
             // Ignore power-down screen.
             return;
         }
@@ -189,7 +189,7 @@ static inline BOOL canInvoke() {
         isEmergencyCall = [[%c(SBTelephonyManager) sharedTelephonyManager] isEmergencyCallActive];
     }
 
-    if ([objc_getClass("SBPowerDownController") respondsToSelector:@selector(sharedInstance)]) {
+    if ([%c(SBPowerDownController) respondsToSelector:@selector(sharedInstance)]) {
         return !(isLocked
                 || isEmergencyCall
                 || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
@@ -239,10 +239,10 @@ static inline SBApplication *topApplication() {
         // App to switch to is not the current app.
         SBApplication *toApp;
         if (IOS_GTE(8_0)) {
-            toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
+            toApp = [(SBApplicationController *)[%c(SBApplicationController) sharedInstance]
                 applicationWithBundleIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         } else {
-            toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
+            toApp = [(SBApplicationController *)[%c(SBApplicationController) sharedInstance]
                 applicationWithDisplayIdentifier:(fromIdent ? prevDisplayId$ : currentDisplayId$)];
         }
 
@@ -250,27 +250,27 @@ static inline SBApplication *topApplication() {
             if (IOS_GTE(9_0)) {
                 // NOTE: The "createRequest..." method used below does *not* follow the ownership rule;
                 //       the returned object is autoreleased.
-                SBMainWorkspace *workspace = [objc_getClass("SBMainWorkspace") sharedInstance];
-                SBWorkspaceApplication *app = [[objc_getClass("SBWorkspaceApplication") alloc] initWithApplication:toApp];
+                SBMainWorkspace *workspace = [%c(SBMainWorkspace) sharedInstance];
+                SBWorkspaceApplication *app = [[%c(SBWorkspaceApplication) alloc] initWithApplication:toApp];
                 SBWorkspaceTransitionRequest *request = [workspace createRequestForApplicationActivation:app options:0];
                 [workspace executeTransitionRequest:request];
                 [app release];
             } else if (IOS_GTE(8_0)) {
                 NSString *name = @"ActivateLastApp";
-                FBWorkspaceEvent *event = [objc_getClass("FBWorkspaceEvent") eventWithName:name handler:^{
+                FBWorkspaceEvent *event = [%c(FBWorkspaceEvent) eventWithName:name handler:^{
                     SBAlertManager *alertManager = workspace$.alertManager;
-                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
+                    SBAppToAppWorkspaceTransaction *transaction = [%c(SBAppToAppWorkspaceTransaction) alloc];
                     transaction = [transaction initWithAlertManager:alertManager from:fromApp to:toApp withResult:nil];
                     [workspace$ setCurrentTransaction:transaction];
                     [transaction release];
                 }];
-                [(FBWorkspaceEventQueue *)[objc_getClass("FBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
+                [(FBWorkspaceEventQueue *)[%c(FBWorkspaceEventQueue) sharedInstance] executeOrAppendEvent:event];
             } else if (IOS_GTE(6_0)) {
                 NSString *label = @"ActivateLastApp";
-                SBWorkspaceEvent *event = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
+                SBWorkspaceEvent *event = [%c(SBWorkspaceEvent) eventWithLabel:label handler:^{
                     BKSWorkspace *workspace = [workspace$ bksWorkspace];
                     SBAlertManager *alertManager = workspace$.alertManager;
-                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
+                    SBAppToAppWorkspaceTransaction *transaction = [%c(SBAppToAppWorkspaceTransaction) alloc];
                     if (IOS_LT(7_0)) {
                         transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp];
                     } else {
@@ -279,7 +279,7 @@ static inline SBApplication *topApplication() {
                     [workspace$ setCurrentTransaction:transaction];
                     [transaction release];
                 }];
-                [(SBWorkspaceEventQueue *)[objc_getClass("SBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
+                [(SBWorkspaceEventQueue *)[%c(SBWorkspaceEventQueue) sharedInstance] executeOrAppendEvent:event];
             } else {
                 [toApp setDisplaySetting:0x4 flag:YES]; // animate
 
