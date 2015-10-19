@@ -135,17 +135,26 @@ static inline NSString *topApplicationIdentifier() {
     }
 }
 
+static inline BOOL isDisplayingPowerDown() {
+    if (IOS_GTE(8_0)) {
+        SpringBoard *springBoard = (SpringBoard *)[UIApplication sharedApplication];
+        return (springBoard.powerDownController != nil);
+    } else if ([%c(SBPowerDownController) respondsToSelector:@selector(sharedInstance)]) {
+        return [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront];
+    } else {
+        return NO;
+    }
+}
+
 static void saveTopApplication() {
     if ([[%c(SBAwayController) sharedAwayController] isLocked]) {
         // Ignore lock screen.
         return;
     }
 
-    if ([%c(SBPowerDownController) respondsToSelector:@selector(sharedInstance)]) {
-        if ([(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]) {
-            // Ignore power-down screen.
-            return;
-        }
+    if (isDisplayingPowerDown()) {
+        // Ignore power-down screen.
+        return;
     }
 
     NSString *displayId = topApplicationIdentifier();
@@ -189,16 +198,10 @@ static inline BOOL canInvoke() {
         isEmergencyCall = [[%c(SBTelephonyManager) sharedTelephonyManager] isEmergencyCallActive];
     }
 
-    if ([%c(SBPowerDownController) respondsToSelector:@selector(sharedInstance)]) {
-        return !(isLocked
-                || isEmergencyCall
-                || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
-                || [(SBPowerDownController *)[%c(SBPowerDownController) sharedInstance] isOrderedFront]);
-    } else {
-        return !(isLocked
-                || isEmergencyCall
-                || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]);
-    }
+    return !(isLocked
+            || isEmergencyCall
+            || [(SBIconController *)[%c(SBIconController) sharedInstance] isEditing]
+            || isDisplayingPowerDown());
 }
 
 static inline SBApplication *topApplication() {

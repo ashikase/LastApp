@@ -130,6 +130,7 @@
 @end
 
 @interface SpringBoard (Firmware_GTE_80)
+@property(retain, nonatomic) SBPowerDownController *powerDownController;
 - (id)_accessibilityFrontMostApplication;
 @end
 
