@@ -23,22 +23,20 @@
 
 @implementation LastAppActivator
 
-+ (void)load
-{
++ (void)load {
     static LastAppActivator *listener = nil;
     if (listener == nil) {
-        // Create LastApp's event listener and register it with libactivator
+        // Create LastApp's event listener and register it with libactivator.
         listener = [[LastAppActivator alloc] init];
         [[LAActivator sharedInstance] registerListener:listener forName:@APP_ID];
     }
 }
 
-- (void)activator:(LAActivator *)activator receiveEvent:(LAEvent *)event
-{
+- (void)activator:(LAActivator *)activator receiveEvent:(LAEvent *)event {
     SpringBoard *springBoard = (SpringBoard *)[UIApplication sharedApplication];
     [springBoard lastApp_switchToLastApp];
 
-    // Prevent the default OS implementation
+    // Prevent the default OS implementation.
     event.handled = YES;
 }
 
@@ -61,16 +59,30 @@ static NSMutableArray *displayStacks$ = nil;
 
 %hook SBDisplayStack %group GFirmware_LT_60
 
-- (id)init
-{
-    id stack = %orig();
-    [displayStacks$ addObject:stack];
-    return stack;
+- (id)init {
+    self = %orig();
+    if (self != nil) {
+        [displayStacks$ addObject:self];
+    }
+    return self;
 }
 
-- (void)dealloc
-{
+- (void)dealloc {
     [displayStacks$ removeObject:self];
+    %orig();
+}
+
+%end %end
+
+// DESC: Create an array to record the pointers to the display stacks.
+
+%hook SpringBoard %group GFirmware_LT_60
+
+- (void)applicationDidFinishLaunching:(UIApplication *)application {
+    // NOTE: SpringBoard creates four stacks at startup.
+    // NOTE: Must create array before calling original implementation.
+    displayStacks$ = [[NSMutableArray alloc] initWithCapacity:4];
+
     %orig();
 }
 
@@ -87,8 +99,7 @@ static SBWorkspace *workspace$ = nil;
 
 %hook SBWorkspace %group GFirmware_GTE_60_LT_90
 
-- (id)init
-{
+- (id)init {
     self = %orig();
     if (self != nil) {
         workspace$ = [self retain];
@@ -96,8 +107,7 @@ static SBWorkspace *workspace$ = nil;
     return self;
 }
 
-- (void)dealloc
-{
+- (void)dealloc {
     if (workspace$ == self) {
         [workspace$ release];
         workspace$ = nil;
@@ -115,8 +125,7 @@ static SBWorkspace *workspace$ = nil;
 static NSString *currentDisplayId$ = nil;
 static NSString *prevDisplayId$ = nil;
 
-static inline NSString *topApplicationIdentifier()
-{
+static inline NSString *topApplicationIdentifier() {
     if (IOS_GTE(8_0)) {
         return [[(SpringBoard *)[UIApplication sharedApplication] _accessibilityFrontMostApplication] bundleIdentifier];
     } else {
@@ -126,29 +135,28 @@ static inline NSString *topApplicationIdentifier()
     }
 }
 
-static void saveTopApplication()
-{
+static void saveTopApplication() {
     if ([[objc_getClass("SBAwayController") sharedAwayController] isLocked]) {
-        // Ignore lock screen
+        // Ignore lock screen.
         return;
     }
 
     if ([objc_getClass("SBPowerDownController") respondsToSelector:@selector(sharedInstance)]) {
         if ([(SBPowerDownController *)[objc_getClass("SBPowerDownController") sharedInstance] isOrderedFront]) {
-            // Ignore power-down screen
+            // Ignore power-down screen.
             return;
         }
     }
 
     NSString *displayId = topApplicationIdentifier();
     if (displayId && ![displayId isEqualToString:currentDisplayId$]) {
-        // Active application has changed
-        // NOTE: SpringBoard is purposely ignored
-        // Store the previously-current app as the previous app
+        // Active application has changed.
+        // NOTE: SpringBoard is purposely ignored.
+        // Store the previously-current app as the previous app.
         [prevDisplayId$ autorelease];
         prevDisplayId$ = currentDisplayId$;
 
-        // Store the new current app
+        // Store the new current app.
         currentDisplayId$ = [displayId copy];
     }
 }
@@ -167,8 +175,7 @@ static void saveTopApplication()
 
 static BOOL shouldBackground$ = NO;
 
-static inline BOOL canInvoke()
-{
+static inline BOOL canInvoke() {
     // Should not invoke if either lock screen or power-off screen is active.
     BOOL isLocked = NO;
     BOOL isEmergencyCall = NO;
@@ -194,8 +201,7 @@ static inline BOOL canInvoke()
     }
 }
 
-static inline SBApplication *topApplication()
-{
+static inline SBApplication *topApplication() {
     if (IOS_GTE(8_0)) {
         return [(SpringBoard *)[UIApplication sharedApplication] _accessibilityFrontMostApplication];
     } else {
@@ -207,18 +213,19 @@ static inline SBApplication *topApplication()
 
 %hook SpringBoard
 
-- (void)dealloc
-{
+- (void)dealloc {
     [prevDisplayId$ release];
     [currentDisplayId$ release];
-    [displayStacks$ release];
+
+    if (IOS_LT(6_0)) {
+        [displayStacks$ release];
+    }
 
     %orig();
 }
 
 %new
-- (void)lastApp_switchToLastApp
-{
+- (void)lastApp_switchToLastApp {
     if (!canInvoke()) return;
 
     SBApplication *fromApp = topApplication();
@@ -229,7 +236,7 @@ static inline SBApplication *topApplication()
         fromIdent = [fromApp displayIdentifier];
     }
     if (![fromIdent isEqualToString:prevDisplayId$]) {
-        // App to switch to is not the current app
+        // App to switch to is not the current app.
         SBApplication *toApp;
         if (IOS_GTE(8_0)) {
             toApp = [(SBApplicationController *)[objc_getClass("SBApplicationController") sharedInstance]
@@ -277,10 +284,10 @@ static inline SBApplication *topApplication()
                 [toApp setDisplaySetting:0x4 flag:YES]; // animate
 
                 if (fromIdent == nil) {
-                    // Switching from SpringBoard; activate last "current" app
+                    // Switching from SpringBoard; activate last "current" app.
                     [SBWPreActivateDisplayStack pushDisplay:toApp];
                 } else {
-                    // Switching from another app; activate previously-active app
+                    // Switching from another app; activate previously-active app.
                     if (IOS_LT(4_0)) {
                         // Firmware 3.x
                         [toApp setActivationSetting:0x40 flag:YES]; // animateOthersSuspension
@@ -292,21 +299,21 @@ static inline SBApplication *topApplication()
                     }
 
                     if (shouldBackground$) {
-                        // If Backgrounder is installed, enable backgrounding for current application
+                        // If Backgrounder is installed, enable backgrounding for current application.
                         if ([self respondsToSelector:@selector(setBackgroundingEnabled:forDisplayIdentifier:)]) {
                             [self setBackgroundingEnabled:YES forDisplayIdentifier:fromIdent];
                         }
                     }
 
                     // NOTE: Must set animation flag for deactivation, otherwise
-                    //       application window does not disappear (reason yet unknown)
+                    //       application window does not disappear (reason yet unknown).
                     [fromApp setDeactivationSetting:0x2 flag:YES]; // animate
 
-                    // Activate the target application
-                    // NOTE: will wait for deactivation of current app due to appToApp flag
+                    // Activate the target application.
+                    // NOTE: will wait for deactivation of current app due to appToApp flag.
                     [SBWPreActivateDisplayStack pushDisplay:toApp];
 
-                    // Deactivate current application by moving from active to suspending stack
+                    // Deactivate current application by moving from active to suspending stack.
                     [SBWActiveDisplayStack popDisplay:fromApp];
                     [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
@@ -319,72 +326,50 @@ static inline SBApplication *topApplication()
 
 //==============================================================================
 
-// DESC: Create an array to record the pointers to the display stacks.
-
-%hook SpringBoard %group GFirmware_LT_60
-
-- (void)applicationDidFinishLaunching:(UIApplication *)application
-{
-    // NOTE: SpringBoard creates four stacks at startup
-    // NOTE: Must create array before calling original implementation
-    displayStacks$ = [[NSMutableArray alloc] initWithCapacity:4];
-
-    %orig();
-}
-
-%end %end
-
-//==============================================================================
-
-static void loadPreferences()
-{
+static void loadPreferences() {
     shouldBackground$ = (BOOL)CFPreferencesGetAppBooleanValue(CFSTR("shouldBackground"), CFSTR(APP_ID), NULL);
 }
 
 static void reloadPreferences(CFNotificationCenterRef center, void *observer,
-    CFStringRef name, const void *object, CFDictionaryRef userInfo)
-{
-    // NOTE: Must synchronize preferences from disk
+    CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    // NOTE: Must synchronize preferences from disk.
     CFPreferencesAppSynchronize(CFSTR(APP_ID));
     loadPreferences();
 }
 
-__attribute__((constructor)) static void init()
-{
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+__attribute__((constructor)) static void init() {
+    @autoreleasepool {
+        // NOTE: This library should only be loaded for SpringBoard.
+        NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
+        if ([identifier isEqualToString:@"com.apple.springboard"]) {
+            // Initialize hooks
+            %init();
 
-    // NOTE: This library should only be loaded for SpringBoard
-    NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
-    if ([identifier isEqualToString:@"com.apple.springboard"]) {
-        // Initialize hooks
-        %init;
+            if (IOS_LT(6_0)) {
+                %init(GFirmware_LT_60);
+            } else if (IOS_LT(9_0)) {
+                %init(GFirmware_GTE_60_LT_90);
+            }
 
-        if (IOS_LT(6_0)) {
-            %init(GFirmware_LT_60);
-        } else if (IOS_LT(9_0)) {
-            %init(GFirmware_GTE_60_LT_90);
+            if (IOS_LT(7_0)) {
+                %init(GFirmware_LT_70);
+            } else {
+                %init(GFirmware_GTE_70);
+            }
+
+            // Load preferences.
+            loadPreferences();
+
+            // Add observer for changes made to preferences.
+            CFNotificationCenterAddObserver(
+                    CFNotificationCenterGetDarwinNotifyCenter(),
+                    NULL, reloadPreferences, CFSTR(APP_ID"-settings"),
+                    NULL, 0);
+
+            // Create the libactivator event listener.
+            [LastAppActivator load];
         }
-
-        if (IOS_LT(7_0)) {
-            %init(GFirmware_LT_70);
-        } else {
-            %init(GFirmware_GTE_70);
-        }
-
-        // Load preferences
-        loadPreferences();
-
-        // Add observer for changes made to preferences
-        CFNotificationCenterAddObserver(
-                CFNotificationCenterGetDarwinNotifyCenter(),
-                NULL, reloadPreferences, CFSTR(APP_ID"-settings"),
-                NULL, 0);
-
-        // Create the libactivator event listener
-        [LastAppActivator load];
     }
-
-    [pool release];
 }
 
 /* vim: set ft=logos sw=4 ts=4 sts=4 expandtab textwidth=80 ff=unix: */
