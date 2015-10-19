@@ -90,6 +90,9 @@
 @interface SBAppToAppWorkspaceTransaction (Firmware_GTE_80)
 - (id)initWithAlertManager:(id)manager from:(id)from to:(id)to withResult:(id)handler;
 @end
+@interface SBAppToAppWorkspaceTransaction (Firmware_GTE_90)
+- (id)initWithTransitionRequest:(id)arg1;
+@end
 
 @interface SBWorkspace : NSObject
 @property(readonly, assign, nonatomic) SBAlertManager *alertManager;
@@ -105,6 +108,17 @@
 @interface SBWorkspaceEventQueue : NSObject
 + (id)sharedInstance;
 - (void)executeOrAppendEvent:(id)event;
+@end
+
+// iOS 7.0+
+@interface SBTelephonyManager : NSObject
++ (id)sharedTelephonyManager;
+- (BOOL)isEmergencyCallActive;
+@end
+
+@interface SBUserAgent : NSObject
++ (id)sharedUserAgent;
+- (BOOL)deviceIsPasscodeLocked;
 @end
 
 // iOS 8.0+
@@ -124,16 +138,21 @@
 - (void)executeOrAppendEvent:(id)event;
 @end
 
-// iOS 7.0+
-@interface SBTelephonyManager : NSObject
-+ (id)sharedTelephonyManager;
-- (BOOL)isEmergencyCallActive;
+// iOS 9.0+
+@interface SBMainWorkspace : SBWorkspace
+// CALLED
++ (id)sharedInstance;
+- (id)createRequestForApplicationActivation:(id)arg1 options:(unsigned int)arg2;
+- (BOOL)executeTransitionRequest:(id)arg1;
 @end
 
-@interface SBUserAgent : NSObject
-+ (id)sharedUserAgent;
-- (BOOL)deviceIsPasscodeLocked;
+@interface SBWorkspaceEntity : NSObject @end
+@interface SBWorkspaceApplication : SBWorkspaceEntity
+// CALLED
+- (id)initWithApplication:(id)arg1;
 @end
+
+@interface SBWorkspaceTransitionRequest : NSObject @end
 
 //==============================================================================
 
@@ -202,10 +221,11 @@ static NSMutableArray *displayStacks$ = nil;
 // DESC: Record the workspace creation and destruction.
 // NOTE: As with display stacks on earlier iOS versions, the variable that holds
 //       the workspace pointer is not (practically) accessible.
+// NOTE: iOS 9 added a class and method for retrieving the workspace.
 
 static SBWorkspace *workspace$ = nil;
 
-%hook SBWorkspace %group GFirmware_GTE_60
+%hook SBWorkspace %group GFirmware_GTE_60_LT_90
 
 - (id)init
 {
@@ -360,7 +380,40 @@ static inline SBApplication *topApplication()
         }
 
         if (toApp) {
-            if (IOS_LT(6_0)) {
+            if (IOS_GTE(9_0)) {
+                // NOTE: The "createRequest..." method used below does *not* follow the ownership rule;
+                //       the returned object is autoreleased.
+                SBMainWorkspace *workspace = [objc_getClass("SBMainWorkspace") sharedInstance];
+                SBWorkspaceApplication *app = [[objc_getClass("SBWorkspaceApplication") alloc] initWithApplication:toApp];
+                SBWorkspaceTransitionRequest *request = [workspace createRequestForApplicationActivation:app options:0];
+                [workspace executeTransitionRequest:request];
+                [app release];
+            } else if (IOS_GTE(8_0)) {
+                NSString *name = @"ActivateLastApp";
+                FBWorkspaceEvent *event = [objc_getClass("FBWorkspaceEvent") eventWithName:name handler:^{
+                    SBAlertManager *alertManager = workspace$.alertManager;
+                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
+                    transaction = [transaction initWithAlertManager:alertManager from:fromApp to:toApp withResult:nil];
+                    [workspace$ setCurrentTransaction:transaction];
+                    [transaction release];
+                }];
+                [(FBWorkspaceEventQueue *)[objc_getClass("FBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
+            } else if (IOS_GTE(6_0)) {
+                NSString *label = @"ActivateLastApp";
+                SBWorkspaceEvent *event = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
+                    BKSWorkspace *workspace = [workspace$ bksWorkspace];
+                    SBAlertManager *alertManager = workspace$.alertManager;
+                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
+                    if (IOS_LT(7_0)) {
+                        transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp];
+                    } else {
+                        transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp activationHandler:nil];
+                    }
+                    [workspace$ setCurrentTransaction:transaction];
+                    [transaction release];
+                }];
+                [(SBWorkspaceEventQueue *)[objc_getClass("SBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
+            } else {
                 [toApp setDisplaySetting:0x4 flag:YES]; // animate
 
                 if (fromIdent == nil) {
@@ -397,31 +450,6 @@ static inline SBApplication *topApplication()
                     [SBWActiveDisplayStack popDisplay:fromApp];
                     [SBWSuspendingDisplayStack pushDisplay:fromApp];
                 }
-            } else if (IOS_GTE(8_0)) {
-                NSString *name = @"ActivateLastApp";
-                FBWorkspaceEvent *event = [objc_getClass("FBWorkspaceEvent") eventWithName:name handler:^{
-                    SBAlertManager *alertManager = workspace$.alertManager;
-                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
-                    transaction = [transaction initWithAlertManager:alertManager from:fromApp to:toApp withResult:nil];
-                    [workspace$ setCurrentTransaction:transaction];
-                    [transaction release];
-                }];
-                [(FBWorkspaceEventQueue *)[objc_getClass("FBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
-            } else {
-                NSString *label = @"ActivateLastApp";
-                SBWorkspaceEvent *event = [objc_getClass("SBWorkspaceEvent") eventWithLabel:label handler:^{
-                    BKSWorkspace *workspace = [workspace$ bksWorkspace];
-                    SBAlertManager *alertManager = workspace$.alertManager;
-                    SBAppToAppWorkspaceTransaction *transaction = [objc_getClass("SBAppToAppWorkspaceTransaction") alloc];
-                    if (IOS_LT(7_0)) {
-                        transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp];
-                    } else {
-                        transaction = [transaction initWithWorkspace:workspace alertManager:alertManager from:fromApp to:toApp activationHandler:nil];
-                    }
-                    [workspace$ setCurrentTransaction:transaction];
-                    [transaction release];
-                }];
-                [(SBWorkspaceEventQueue *)[objc_getClass("SBWorkspaceEventQueue") sharedInstance] executeOrAppendEvent:event];
             }
         }
     }
@@ -473,8 +501,8 @@ __attribute__((constructor)) static void init()
 
         if (IOS_LT(6_0)) {
             %init(GFirmware_LT_60);
-        } else {
-            %init(GFirmware_GTE_60);
+        } else if (IOS_LT(9_0)) {
+            %init(GFirmware_GTE_60_LT_90);
         }
 
         if (IOS_LT(7_0)) {
