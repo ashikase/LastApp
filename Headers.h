@@ -10,6 +10,15 @@
 #ifndef LASTAPP_HEADERS_H_
 #define LASTAPP_HEADERS_H_
 
+@interface SBCoverSheetPresentationManager : NSObject
++ (id)sharedInstance;
+- (BOOL)hasBeenDismissedSinceKeybagLock;
+@end
+
+@interface SBDeviceApplicationSceneEntity : NSObject // SBApplicationSceneEntity -> SBWorkspaceEntity -> NSObject
+- (id)initWithApplicationForMainDisplay:(id)arg1;
+@end
+
 @interface SBDisplay : NSObject
 - (void)setActivationSetting:(unsigned)setting flag:(BOOL)flag;
 - (void)setDeactivationSetting:(unsigned)setting flag:(BOOL)flag;
@@ -113,6 +122,7 @@
 
 @interface SBUserAgent : NSObject
 + (id)sharedUserAgent;
+- (BOOL)deviceIsLocked;
 - (BOOL)deviceIsPasscodeLocked;
 @end
 
