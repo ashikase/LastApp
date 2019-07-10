@@ -147,7 +147,18 @@ static inline BOOL isDisplayingPowerDown() {
 }
 
 static void saveTopApplication() {
-    if ([[%c(SBAwayController) sharedAwayController] isLocked]) {
+    BOOL isLocked = NO;
+
+    if (IOS_GTE(11_0) || IOS_GTE(12_0)) {
+        isLocked = ![[%c(SBCoverSheetPresentationManager) sharedInstance] hasBeenDismissedSinceKeybagLock];
+    } else if (IOS_LT(7_0)) {
+        SBAwayController *awayCont = [%c(SBAwayController) sharedAwayController];
+        isLocked = [awayCont isLocked];
+    } else {
+        isLocked = [[%c(SBUserAgent) sharedUserAgent] deviceIsLocked];
+    }
+
+    if (isLocked) {
         // Ignore lock screen.
         return;
     }
@@ -189,7 +200,10 @@ static inline BOOL canInvoke() {
     BOOL isLocked = NO;
     BOOL isEmergencyCall = NO;
 
-    if (IOS_LT(7_0)) {
+    if (IOS_GTE(11_0) || IOS_GTE(12_0)) {
+        isLocked = ![[%c(SBCoverSheetPresentationManager) sharedInstance] hasBeenDismissedSinceKeybagLock];
+        isEmergencyCall = [[%c(SBTelephonyManager) sharedTelephonyManager] isEmergencyCallActive];
+    } else if (IOS_LT(7_0)) {
         SBAwayController *awayCont = [%c(SBAwayController) sharedAwayController];
         isLocked = [awayCont isLocked];
         isEmergencyCall = [awayCont isMakingEmergencyCall];
@@ -250,7 +264,13 @@ static inline SBApplication *topApplication() {
         }
 
         if (toApp) {
-            if (IOS_GTE(9_0)) {
+            if (IOS_GTE(11_0) || IOS_GTE(12_0)) {
+                SBMainWorkspace *workspace = [%c(SBMainWorkspace) sharedInstance];
+                SBDeviceApplicationSceneEntity *app = [[%c(SBDeviceApplicationSceneEntity) alloc] initWithApplicationForMainDisplay:toApp];
+                SBWorkspaceTransitionRequest *request = [workspace createRequestForApplicationActivation:app options:0];
+                [workspace executeTransitionRequest:request];
+                [app release];
+            } else if (IOS_GTE(9_0)) {
                 // NOTE: The "createRequest..." method used below does *not* follow the ownership rule;
                 //       the returned object is autoreleased.
                 SBMainWorkspace *workspace = [%c(SBMainWorkspace) sharedInstance];
